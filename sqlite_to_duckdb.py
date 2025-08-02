@@ -6,7 +6,7 @@ from typing import Tuple, List
 DATABASE_PATH = "data_files/index.db"
 DUCK_DB_PATH = "data_files/index.duckdb"
 
-def explore_sqlite_db():
+def get_table_names() -> List[str]:
     """
     Connect to sqlite database and discovver all tables and their structures
     """
@@ -25,7 +25,7 @@ def explore_sqlite_db():
                        """)
         tables = cursor.fetchall()
         table_names = [table[0] for table in tables]
-        print("Hipe this is working")
+        return table_names
 
     except sqlite3.Error as e:
         print(f"Error connecting to database: {e}")
@@ -71,7 +71,7 @@ def stream_sqlite_table_data(table_name):
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute(f"SELECT * FROM {table_name}")
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         total_rows = cursor.fetchone()[0]
         print(f"Streaming {total_rows:,} rows from {table_name}")
 
@@ -118,6 +118,7 @@ def migrate_sqlite_to_duckdb(table_schema, table_name):
             print(f"Inserted {len(batch)} rows (total: {total_inserted:,})")
 
         # Commit transaction
+        print("\n")
         duck_conn.commit()
 
         result = duck_conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
@@ -126,26 +127,31 @@ def migrate_sqlite_to_duckdb(table_schema, table_name):
     finally:
         duck_conn.close()
 
-def delete_data_from_duckdb():
+def delete_data_from_duckdb(table_name: str):
     try:
         duck_conn = duckdb.connect(DUCK_DB_PATH)
-        duck_conn.execute("DELETE FROM search_table")
+        duck_conn.execute(f"DROP TABLE IF EXISTS {table_name};")
         duck_conn.commit()
-        print("All data deleted from DuckDB table 'search_table'")
+        print(f"All data deleted from DuckDB table {table_name}")
     except Exception as e:
         print(f"Error deleting data: {e}")
     finally:
         duck_conn.close()
 
-def runner():
-    table_name = "search_table"
+def deleter():
+    table_names = get_table_names()
+    for table_name in table_names:
+        delete_data_from_duckdb(table_name)
 
-    # explore_sqlite_db()
-    table_schema = get_sqlite_table_schema(table_name)
-    # create_duckdb_table_from_sqlite_schema(table_schema, table_name)
-    migrate_sqlite_to_duckdb(table_schema, table_name)
-    # delete_data_from_duckdb()
+def runner():
+    table_names = get_table_names()
+    for table_name in table_names:
+        table_schema = get_sqlite_table_schema(table_name)
+        create_duckdb_table_from_sqlite_schema(table_schema, table_name)
+        migrate_sqlite_to_duckdb(table_schema, table_name)
+
 
 if __name__ == "__main__":
     runner()
+    # deleter()
 
